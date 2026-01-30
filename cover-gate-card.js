@@ -515,8 +515,7 @@ class CoverGateCard extends HTMLElement {
 
     _renderSvg(type) {
         if (type === 'sliding') {
-            if (type === 'sliding') {
-                return `
+            return `
                 <svg class="gate-visual" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
                     <!-- Ground/Track -->
                     <line x1="10" y1="110" x2="190" y2="110" class="gate-sliding-track" />
@@ -535,8 +534,8 @@ class CoverGateCard extends HTMLElement {
                     </g>
                 </svg>
             `;
-            } else if (type === 'swing') {
-                return `
+        } else if (type === 'swing') {
+            return `
                 <svg class="gate-visual" viewBox="0 0 200 120">
                     <!-- Posts -->
                     <rect x="10" y="20" width="10" height="90" class="gate-post" />
@@ -561,8 +560,8 @@ class CoverGateCard extends HTMLElement {
                     </g>
                 </svg>
             `;
-            } else if (type === 'garage') {
-                return `
+        } else if (type === 'garage') {
+            return `
                 <svg class="gate-visual" viewBox="0 0 200 120">
                     <!-- Wall Frame -->
                     <path d="M20,110 V20 H180 V110" fill="none" stroke="#444" stroke-width="10" />
@@ -574,30 +573,30 @@ class CoverGateCard extends HTMLElement {
                     </g>
                 </svg>
              `;
-            }
         }
+    }
 
-        _addEventListeners() {
-            if (!this.shadowRoot) return;
+    _addEventListeners() {
+        if (!this.shadowRoot) return;
 
-            this.shadowRoot.getElementById('btn-open')?.addEventListener('click', () => this._handleCoverAction('open_cover'));
-            this.shadowRoot.getElementById('btn-close')?.addEventListener('click', () => this._handleCoverAction('close_cover'));
-            this.shadowRoot.getElementById('btn-stop')?.addEventListener('click', () => this._handleCoverAction('stop_cover'));
+        this.shadowRoot.getElementById('btn-open')?.addEventListener('click', () => this._handleCoverAction('open_cover'));
+        this.shadowRoot.getElementById('btn-close')?.addEventListener('click', () => this._handleCoverAction('close_cover'));
+        this.shadowRoot.getElementById('btn-stop')?.addEventListener('click', () => this._handleCoverAction('stop_cover'));
 
-            const slider = this.shadowRoot.querySelector('.position-slider');
-            if (slider) {
-                slider.addEventListener('change', (e) => {
-                    this._hass.callService('cover', 'set_cover_position', {
-                        entity_id: this.config.entity,
-                        position: parseInt(e.target.value)
-                    });
+        const slider = this.shadowRoot.querySelector('.position-slider');
+        if (slider) {
+            slider.addEventListener('change', (e) => {
+                this._hass.callService('cover', 'set_cover_position', {
+                    entity_id: this.config.entity,
+                    position: parseInt(e.target.value)
                 });
-                // Live update for dragging (optional, depends on if we want visual feedback immediately)
-                slider.addEventListener('input', (e) => {
-                    this._updateVisuals(parseInt(e.target.value));
-                });
-            }
+            });
+            // Live update for dragging (optional, depends on if we want visual feedback immediately)
+            slider.addEventListener('input', (e) => {
+                this._updateVisuals(parseInt(e.target.value));
+            });
         }
+    }
 
     // EDITOR
     static getConfigElement() {
