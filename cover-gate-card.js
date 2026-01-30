@@ -38,6 +38,9 @@ class CoverGateCard extends HTMLElement {
             name: config.name || '',
             entity: config.entity,
             gate_type: config.gate_type || 'sliding', // sliding, swing, garage
+            button_text_open: config.button_text_open || 'Open',
+            button_text_stop: config.button_text_stop || 'Stop',
+            button_text_close: config.button_text_close || 'Close',
             show_buttons: config.show_buttons !== false,
             show_name: config.show_name !== false,
             show_stop_button: config.show_stop_button !== false,
@@ -319,7 +322,7 @@ class CoverGateCard extends HTMLElement {
                 /* VISUALIZATION CONTAINER */
                 .gate-visual-container {
                     width: 100%;
-                    height: 140px;
+                    height: 105px;
                     position: relative;
                     display: flex;
                     justify-content: center;
@@ -425,13 +428,13 @@ class CoverGateCard extends HTMLElement {
                     flex: 1;
                     background: rgba(255,255,255,0.05);
                     border: 1px solid rgba(255,255,255,0.1);
-                    border-radius: 10px;
-                    padding: 12px;
+                    border-radius: 8px;
+                    padding: 8px;
                     cursor: pointer;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    gap: 4px;
+                    gap: 2px;
                     transition: all 0.2s;
                     color: var(--primary-text-color);
                 }
@@ -454,11 +457,11 @@ class CoverGateCard extends HTMLElement {
                 }
                 
                 .ctrl-btn ha-icon {
-                    --mdc-icon-size: 24px;
+                    --mdc-icon-size: 18px;
                 }
 
                 .ctrl-label {
-                    font-size: 0.8rem;
+                    font-size: 0.7rem;
                     font-weight: 500;
                 }
 
@@ -489,19 +492,19 @@ class CoverGateCard extends HTMLElement {
 
                             <button class="ctrl-btn ${Math.round(position) === 100 ? 'disabled' : ''}" id="btn-open">
                                 <ha-icon icon="mdi:arrow-up"></ha-icon>
-                                <span class="ctrl-label">Open</span>
+                                <span class="ctrl-label">${this.config.button_text_open}</span>
                             </button>
                             
                             ${this.config.show_stop_button ? `
                             <button class="ctrl-btn" id="btn-stop">
                                 <ha-icon icon="mdi:stop"></ha-icon>
-                                <span class="ctrl-label">Stop</span>
+                                <span class="ctrl-label">${this.config.button_text_stop}</span>
                             </button>
                             ` : ''}
 
                             <button class="ctrl-btn ${Math.round(position) === 0 ? 'disabled' : ''}" id="btn-close">
                                 <ha-icon icon="mdi:arrow-down"></ha-icon>
-                                <span class="ctrl-label">Close</span>
+                                <span class="ctrl-label">${this.config.button_text_close}</span>
                             </button>
                         </div>
                     </div>
@@ -648,7 +651,7 @@ class CoverGateCardEditor extends HTMLElement {
                     // Textfield, select, picker
                     if (key === 'gate_type' && !value) value = 'sliding';
                     // Maintain focus if this element is active to avoid cursor jumping
-                    if (el !== document.activeElement) { // Use document.activeElement for vanilla HTMLElement
+                    if (el !== document.activeElement && el.value !== value) {
                         el.value = value !== undefined ? value : '';
                     }
                 }
@@ -676,19 +679,36 @@ class CoverGateCardEditor extends HTMLElement {
                         configValue="name"
                     ></ha-textfield>
                 </div>
+                
+                <h3>Button Labels</h3>
+                 <div class="side-by-side">
+                    <ha-textfield
+                        label="Open Text"
+                        .value="${this._config.button_text_open || 'Open'}"
+                        configValue="button_text_open"
+                    ></ha-textfield>
+                    <ha-textfield
+                        label="Stop Text"
+                        .value="${this._config.button_text_stop || 'Stop'}"
+                        configValue="button_text_stop"
+                    ></ha-textfield>
+                    <ha-textfield
+                        label="Close Text"
+                        .value="${this._config.button_text_close || 'Close'}"
+                        configValue="button_text_close"
+                    ></ha-textfield>
+                </div>
 
                 <div class="side-by-side">
-                     <ha-select
-                        label="Gate Type"
-                        .value="${this._config.gate_type || 'sliding'}"
+                     <div class="select-label">Gate Type</div>
+                     <select
+                        class="native-select"
                         configValue="gate_type"
-                        fixedMenuPosition
-                        naturalMenuWidth
                     >
-                        <mwc-list-item value="sliding">Sliding Gate</mwc-list-item>
-                        <mwc-list-item value="swing">Swing Gate</mwc-list-item>
-                        <mwc-list-item value="garage">Garage Door</mwc-list-item>
-                    </ha-select>
+                        <option value="sliding">Sliding Gate</option>
+                        <option value="swing">Swing Gate</option>
+                        <option value="garage">Garage Door</option>
+                    </select>
                 </div>
                 
                 <br>
@@ -740,7 +760,8 @@ class CoverGateCardEditor extends HTMLElement {
             <style>
                 .card-config { display: flex; flex-direction: column; gap: 12px; }
                 .side-by-side { display: flex; gap: 8px; align-items: center; }
-                ha-select { width: 100%; }
+                .select-label { font-size: 12px; color: var(--secondary-text-color); margin-bottom: 4px; }
+                .native-select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); }
             </style>
         `;
 
@@ -753,12 +774,8 @@ class CoverGateCardEditor extends HTMLElement {
             if (el.tagName === 'HA-TEXTFIELD') {
                 el.addEventListener('input', this._valueChanged.bind(this));
             }
-            if (el.tagName === 'HA-SELECT') {
-                el.addEventListener('selected', (e) => {
-                    e.stopPropagation(); // prevent bubbling to other selects
-                    // Trigger value change manually if needed or let value-changed handle it
-                    this._valueChanged({ target: el, detail: { value: el.value } });
-                });
+            if (el.tagName === 'SELECT') {
+                el.addEventListener('change', this._valueChanged.bind(this));
             }
         });
     }
@@ -766,8 +783,15 @@ class CoverGateCardEditor extends HTMLElement {
     _valueChanged(e) {
         if (!this._config || !this._hass) return;
         const target = e.target;
-        const value = target.checked !== undefined ? target.checked : (e.detail?.value || target.value);
-        const configValue = target.configValue;
+        let value = target.value;
+
+        if (target.tagName === 'HA-CHECKBOX') {
+            value = target.checked;
+        } else {
+            value = e.detail?.value !== undefined ? e.detail.value : target.value;
+        }
+
+        const configValue = target.getAttribute('configValue');
 
         if (this._config[configValue] === value) return;
 
@@ -776,7 +800,11 @@ class CoverGateCardEditor extends HTMLElement {
                 ...this._config,
                 [configValue]: value,
             };
-            this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config } }));
+            this.dispatchEvent(new CustomEvent('config-changed', {
+                detail: { config: this._config },
+                bubbles: true,
+                composed: true
+            }));
         }
     }
 }
