@@ -28,11 +28,14 @@ opening_time: 20          # seconds (optional, for simulation)
 closing_time: 20          # seconds (optional, for simulation)
 background_opacity: 80    # 0-100 (optional, default 100)
 show_stop_button: true    # boolean (optional, default true)
+show_name: true           # boolean (optional, default true)
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `entity` | string | **required** | Cover entity ID |
+| `name` | string | entity name | Custom display name |
+| `show_name` | boolean | `true` | Show/Hide the card title |
 | `gate_type` | string | `sliding` | `sliding`, `swing`, or `garage` |
 | `opening_time` | number | `0` | Seconds to simulate opening (if position missing) |
 | `closing_time` | number | `0` | Seconds to simulate closing |
