@@ -39,6 +39,7 @@ class CoverGateCard extends HTMLElement {
             entity: config.entity,
             gate_type: config.gate_type || 'sliding', // sliding, swing, garage
             show_buttons: config.show_buttons !== false,
+            show_name: config.show_name !== false,
             show_stop_button: config.show_stop_button !== false,
             background_opacity: config.background_opacity ?? 100,
 
@@ -435,12 +436,19 @@ class CoverGateCard extends HTMLElement {
                     color: var(--primary-text-color);
                 }
 
-                .ctrl-btn:hover {
+                .ctrl-btn.disabled {
+                    opacity: 0.3;
+                    pointer-events: none;
+                    background: transparent;
+                    border-color: transparent;
+                }
+
+                .ctrl-btn:hover:not(.disabled) {
                     background: rgba(255,255,255,0.1);
                     border-color: var(--accent-color);
                 }
 
-                .ctrl-btn:active {
+                .ctrl-btn:active:not(.disabled) {
                     background: var(--accent-color);
                     color: #fff;
                 }
@@ -459,10 +467,12 @@ class CoverGateCard extends HTMLElement {
             <ha-card>
                 <div class="card-content">
                     <div class="header">
+                        ${this.config.show_name ? `
                         <div class="title">
                             <ha-icon icon="${this._getGateIcon()}"></ha-icon>
                             ${name}
                         </div>
+                        ` : ''}
                     </div>
 
                     <div class="gate-visual-container">
@@ -476,7 +486,8 @@ class CoverGateCard extends HTMLElement {
                         </div>
 
                         <div class="button-row">
-                            <button class="ctrl-btn" id="btn-open">
+                        <div class="button-row">
+                            <button class="ctrl-btn ${Math.round(position) === 100 ? 'disabled' : ''}" id="btn-open">
                                 <ha-icon icon="mdi:arrow-up"></ha-icon>
                                 <span class="ctrl-label">Open</span>
                             </button>
@@ -488,7 +499,7 @@ class CoverGateCard extends HTMLElement {
                             </button>
                             ` : ''}
 
-                            <button class="ctrl-btn" id="btn-close">
+                            <button class="ctrl-btn ${Math.round(position) === 0 ? 'disabled' : ''}" id="btn-close">
                                 <ha-icon icon="mdi:arrow-down"></ha-icon>
                                 <span class="ctrl-label">Close</span>
                             </button>
@@ -686,6 +697,16 @@ class CoverGateCardEditor extends HTMLElement {
                         <ha-checkbox
                             .checked="${this._config.show_stop_button !== false}"
                             .configValue="${'show_stop_button'}"
+                            @change="${this._valueChanged}"
+                        ></ha-checkbox>
+                    </ha-formfield>
+                </div>
+                
+                <div class="side-by-side">
+                    <ha-formfield label="Show Name">
+                        <ha-checkbox
+                            .checked="${this._config.show_name !== false}"
+                            .configValue="${'show_name'}"
                             @change="${this._valueChanged}"
                         ></ha-checkbox>
                     </ha-formfield>
