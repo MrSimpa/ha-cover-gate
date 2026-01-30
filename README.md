@@ -59,6 +59,5 @@ show_name: true           # boolean (optional, default true)
 | `background_opacity` | number | `100` | Card background opacity (0-100) |
 | `show_stop_button` | boolean | `true` | Show/Hide the Stop button |
 
-## User interface - Card
-(screenshot-edit.png)
+
 
