@@ -37,6 +37,13 @@ resources:
 
 ## Configuration
 
+### Visual Editor
+The card includes a full visual editor for easy configuration.
+
+![Visual Editor](screenshot-editor.png)
+
+### Manual YAML
+
 ```yaml
 type: custom:cover-gate-card
 entity: cover.my_gate
@@ -58,6 +65,4 @@ show_name: true           # boolean (optional, default true)
 | `closing_time` | number | `0` | Seconds to simulate closing |
 | `background_opacity` | number | `100` | Card background opacity (0-100) |
 | `show_stop_button` | boolean | `true` | Show/Hide the Stop button |
-
-
 
