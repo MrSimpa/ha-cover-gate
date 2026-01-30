@@ -466,14 +466,14 @@ class CoverGateCard extends HTMLElement {
             
             <ha-card>
                 <div class="card-content">
+                    ${this.config.show_name ? `
                     <div class="header">
-                        ${this.config.show_name ? `
                         <div class="title">
                             <ha-icon icon="${this._getGateIcon()}"></ha-icon>
                             ${name}
                         </div>
-                        ` : ''}
                     </div>
+                    ` : ''}
 
                     <div class="gate-visual-container">
                         ${this._renderSvg(this.config.gate_type)}
@@ -486,7 +486,7 @@ class CoverGateCard extends HTMLElement {
                         </div>
 
                         <div class="button-row">
-                        <div class="button-row">
+
                             <button class="ctrl-btn ${Math.round(position) === 100 ? 'disabled' : ''}" id="btn-open">
                                 <ha-icon icon="mdi:arrow-up"></ha-icon>
                                 <span class="ctrl-label">Open</span>
@@ -515,7 +515,8 @@ class CoverGateCard extends HTMLElement {
 
     _renderSvg(type) {
         if (type === 'sliding') {
-            return `
+            if (type === 'sliding') {
+                return `
                 <svg class="gate-visual" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
                     <!-- Ground/Track -->
                     <line x1="10" y1="110" x2="190" y2="110" class="gate-sliding-track" />
@@ -530,12 +531,12 @@ class CoverGateCard extends HTMLElement {
                         <line x1="20" y1="45" x2="160" y2="45" stroke="var(--accent-color)" stroke-width="2" />
                         <line x1="20" y1="65" x2="160" y2="65" stroke="var(--accent-color)" stroke-width="2" />
                         <line x1="20" y1="85" x2="160" y2="85" stroke="var(--accent-color)" stroke-width="2" />
-                        <rect x="20" y="30" width="140" height="75" rx="2" fill="none" class="gate-frame" />
+                        <rect x="20" y="30" width="140" height="75" rx="2" fill="none" class="gate-frame" stroke="var(--accent-color)" stroke-width="2" />
                     </g>
                 </svg>
             `;
-        } else if (type === 'swing') {
-            return `
+            } else if (type === 'swing') {
+                return `
                 <svg class="gate-visual" viewBox="0 0 200 120">
                     <!-- Posts -->
                     <rect x="10" y="20" width="10" height="90" class="gate-post" />
@@ -560,8 +561,8 @@ class CoverGateCard extends HTMLElement {
                     </g>
                 </svg>
             `;
-        } else if (type === 'garage') {
-            return `
+            } else if (type === 'garage') {
+                return `
                 <svg class="gate-visual" viewBox="0 0 200 120">
                     <!-- Wall Frame -->
                     <path d="M20,110 V20 H180 V110" fill="none" stroke="#444" stroke-width="10" />
@@ -573,30 +574,30 @@ class CoverGateCard extends HTMLElement {
                     </g>
                 </svg>
              `;
+            }
         }
-    }
 
-    _addEventListeners() {
-        if (!this.shadowRoot) return;
+        _addEventListeners() {
+            if (!this.shadowRoot) return;
 
-        this.shadowRoot.getElementById('btn-open')?.addEventListener('click', () => this._handleCoverAction('open_cover'));
-        this.shadowRoot.getElementById('btn-close')?.addEventListener('click', () => this._handleCoverAction('close_cover'));
-        this.shadowRoot.getElementById('btn-stop')?.addEventListener('click', () => this._handleCoverAction('stop_cover'));
+            this.shadowRoot.getElementById('btn-open')?.addEventListener('click', () => this._handleCoverAction('open_cover'));
+            this.shadowRoot.getElementById('btn-close')?.addEventListener('click', () => this._handleCoverAction('close_cover'));
+            this.shadowRoot.getElementById('btn-stop')?.addEventListener('click', () => this._handleCoverAction('stop_cover'));
 
-        const slider = this.shadowRoot.querySelector('.position-slider');
-        if (slider) {
-            slider.addEventListener('change', (e) => {
-                this._hass.callService('cover', 'set_cover_position', {
-                    entity_id: this.config.entity,
-                    position: parseInt(e.target.value)
+            const slider = this.shadowRoot.querySelector('.position-slider');
+            if (slider) {
+                slider.addEventListener('change', (e) => {
+                    this._hass.callService('cover', 'set_cover_position', {
+                        entity_id: this.config.entity,
+                        position: parseInt(e.target.value)
+                    });
                 });
-            });
-            // Live update for dragging (optional, depends on if we want visual feedback immediately)
-            slider.addEventListener('input', (e) => {
-                this._updateVisuals(parseInt(e.target.value));
-            });
+                // Live update for dragging (optional, depends on if we want visual feedback immediately)
+                slider.addEventListener('input', (e) => {
+                    this._updateVisuals(parseInt(e.target.value));
+                });
+            }
         }
-    }
 
     // EDITOR
     static getConfigElement() {
@@ -623,7 +624,40 @@ class CoverGateCardEditor extends HTMLElement {
     render() {
         if (!this._hass || !this._config) return;
 
-        // Simple innerHTML render for editor (could be LitElement but vanilla JS here)
+        // Only render structure once
+        if (this.querySelector('.card-config')) {
+            // Update values only
+            const config = this._config;
+            const elements = this.querySelectorAll('[configValue]');
+            elements.forEach(el => {
+                const key = el.getAttribute('configValue');
+                if (!key) return;
+
+                let value = config[key];
+                if (el.tagName === 'HA-CHECKBOX') {
+                    // Checkbox handling
+                    // 'show_buttons' is not in the current template, but keeping it as per instruction
+                    if (key === 'show_buttons') value = config.show_buttons !== false;
+                    if (key === 'show_stop_button') value = config.show_stop_button !== false;
+                    if (key === 'show_name') value = config.show_name !== false;
+                    el.checked = value;
+                } else if (el.tagName === 'HA-BACKEND-SLIDER') {
+                    // Slider default
+                    if (key === 'background_opacity' && value === undefined) value = 100;
+                    el.value = value;
+                } else {
+                    // Textfield, select, picker
+                    if (key === 'gate_type' && !value) value = 'sliding';
+                    // Maintain focus if this element is active to avoid cursor jumping
+                    if (el !== document.activeElement) { // Use document.activeElement for vanilla HTMLElement
+                        el.value = value !== undefined ? value : '';
+                    }
+                }
+            });
+            return;
+        }
+
+        // Initial Render
         this.innerHTML = `
             <div class="card-config">
                 <div class="side-by-side">
@@ -632,8 +666,7 @@ class CoverGateCardEditor extends HTMLElement {
                         .hass="${this._hass}"
                         .value="${this._config.entity}"
                         .includeDomains="${['cover']}"
-                        @value-changed="${this._valueChanged}"
-                        .configValue="${'entity'}"
+                        configValue="entity"
                     ></ha-entity-picker>
                 </div>
                 
@@ -641,8 +674,7 @@ class CoverGateCardEditor extends HTMLElement {
                     <ha-textfield
                         label="Name (Optional)"
                         .value="${this._config.name || ''}"
-                        .configValue="${'name'}"
-                        @input="${this._valueChanged}"
+                        configValue="name"
                     ></ha-textfield>
                 </div>
 
@@ -650,8 +682,7 @@ class CoverGateCardEditor extends HTMLElement {
                      <ha-select
                         label="Gate Type"
                         .value="${this._config.gate_type || 'sliding'}"
-                        .configValue="${'gate_type'}"
-                        @selected="${this._valueChanged}"
+                        configValue="gate_type"
                         fixedMenuPosition
                         naturalMenuWidth
                     >
@@ -668,15 +699,13 @@ class CoverGateCardEditor extends HTMLElement {
                         label="Opening Time (sec)"
                         type="number"
                         .value="${this._config.opening_time || 0}"
-                        .configValue="${'opening_time'}"
-                        @input="${this._valueChanged}"
+                        configValue="opening_time"
                     ></ha-textfield>
                     <ha-textfield
                         label="Closing Time (sec)"
                         type="number"
                         .value="${this._config.closing_time || 0}"
-                        .configValue="${'closing_time'}"
-                        @input="${this._valueChanged}"
+                        configValue="closing_time"
                     ></ha-textfield>
                 </div>
                 
@@ -687,8 +716,7 @@ class CoverGateCardEditor extends HTMLElement {
                         label="Background Opacity"
                         .value="${this._config.background_opacity ?? 100}"
                          min="0" max="100" step="10"
-                        .configValue="${'background_opacity'}"
-                        @change="${this._valueChanged}"
+                        configValue="background_opacity"
                     ></ha-backend-slider>
                 </div>
 
@@ -696,8 +724,7 @@ class CoverGateCardEditor extends HTMLElement {
                     <ha-formfield label="Show Stop Button">
                         <ha-checkbox
                             .checked="${this._config.show_stop_button !== false}"
-                            .configValue="${'show_stop_button'}"
-                            @change="${this._valueChanged}"
+                            configValue="show_stop_button"
                         ></ha-checkbox>
                     </ha-formfield>
                 </div>
@@ -706,8 +733,7 @@ class CoverGateCardEditor extends HTMLElement {
                     <ha-formfield label="Show Name">
                         <ha-checkbox
                             .checked="${this._config.show_name !== false}"
-                            .configValue="${'show_name'}"
-                            @change="${this._valueChanged}"
+                            configValue="show_name"
                         ></ha-checkbox>
                     </ha-formfield>
                 </div>
@@ -719,20 +745,21 @@ class CoverGateCardEditor extends HTMLElement {
             </style>
         `;
 
-        // Re-attach event listeners because innerHTML wipes them
+        // Attach event listeners once
         this.querySelectorAll('[configValue]').forEach(el => {
-            if (el.tagName === 'HA-ENTITY-PICKER' || el.tagName === 'HA-SELECT') {
-                el.addEventListener('value-changed', this._valueChanged.bind(this));
-                // For ha-select 'selected' might be needed depending on version, generic catch:
+            el.addEventListener('value-changed', this._valueChanged.bind(this));
+            if (el.tagName === 'HA-CHECKBOX' || el.tagName === 'HA-BACKEND-SLIDER') {
+                el.addEventListener('change', this._valueChanged.bind(this));
+            }
+            if (el.tagName === 'HA-TEXTFIELD') {
+                el.addEventListener('input', this._valueChanged.bind(this));
+            }
+            if (el.tagName === 'HA-SELECT') {
                 el.addEventListener('selected', (e) => {
-                    e.stopPropagation();
+                    e.stopPropagation(); // prevent bubbling to other selects
+                    // Trigger value change manually if needed or let value-changed handle it
                     this._valueChanged({ target: el, detail: { value: el.value } });
                 });
-            } else if (el.tagName === 'HA-TEXTFIELD' || el.tagName === 'HA-BACKEND-SLIDER') {
-                el.addEventListener('input', this._valueChanged.bind(this)); // live update
-                el.addEventListener('change', this._valueChanged.bind(this));
-            } else if (el.tagName === 'HA-CHECKBOX') {
-                el.addEventListener('change', this._valueChanged.bind(this));
             }
         });
     }

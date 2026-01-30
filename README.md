@@ -7,7 +7,24 @@ A modern Home Assistant custom card for controlling gates and garage doors with 
 - 🎨 **Visualizations**: Animated SVGs for each gate type
 - ⚙️ **Customizable**: Background opacity, stop button visibility, opening/closing times
 
+## Screenshots
+
+| Sliding Gate | Swing Gate | Garage Door |
+|:---:|:---:|:---:|
+| ![Sliding Gate](screenshot.png) | ![Swing Gate](screenshot-swing.png) | ![Garage Door](screenshot-garage.png) |
+
 ## Installation
+
+### HACS (Recommended)
+1. Open HACS in Home Assistant.
+2. Go to **Frontend**.
+3. Click the menu button (top right) -> **Custom repositories**.
+4. Add the URL of your repository:
+   `https://github.com/VAŠE_UPORABNIŠKO_IME/ha-cover-gate`
+5. Select category **Lovelace**.
+6. Click **Add**.
+7. Find "Cover Gate Card" in the list and install it.
+8. Restart Home Assistant (or reload resources).
 
 ### Manual Installation
 1. Copy `cover-gate-card.js` to `/config/www/cover-gate-card.js`
