@@ -27,8 +27,7 @@ class CoverGateCard extends HTMLElement {
         this._rendered = false;
         this._simulatedPosition = 0;
         this._state = 'stopped'; // stopped, opening, closing
-        this._lastUpdate = 0;
-        this._animationFrame = null;
+        this.attachShadow({ mode: 'open' });
     }
 
     setConfig(config) {
@@ -41,15 +40,34 @@ class CoverGateCard extends HTMLElement {
             button_text_open: config.button_text_open || 'Open',
             button_text_stop: config.button_text_stop || 'Stop',
             button_text_close: config.button_text_close || 'Close',
+            button_style_background: config.button_style_background || 'rgba(255,255,255,0.05)',
+            button_style_text: config.button_style_text || 'var(--primary-text-color)',
+            button_style_icon: config.button_style_icon || 'inherit',
+
+            // Granular Button Styles
+            btn_open_bg: config.btn_open_bg,
+            btn_open_text: config.btn_open_text,
+            btn_open_icon: config.btn_open_icon || 'mdi:arrow-up',
+            btn_open_icon_color: config.btn_open_icon_color,
+
+            btn_stop_bg: config.btn_stop_bg,
+            btn_stop_text: config.btn_stop_text,
+            btn_stop_icon: config.btn_stop_icon || 'mdi:stop',
+            btn_stop_icon_color: config.btn_stop_icon_color,
+
+            btn_close_bg: config.btn_close_bg,
+            btn_close_text: config.btn_close_text,
+            btn_close_icon: config.btn_close_icon || 'mdi:arrow-down',
+            btn_close_icon_color: config.btn_close_icon_color,
+
+            control_style: config.control_style || 'row', // row, single
             show_buttons: config.show_buttons !== false,
             show_name: config.show_name !== false,
+            show_state: config.show_state !== false,
             show_stop_button: config.show_stop_button !== false,
             background_opacity: config.background_opacity ?? 100,
 
-            // Time based simulation
-            opening_time: config.opening_time || 0,
-            closing_time: config.closing_time || 0,
-            assume_position_from_time: config.assume_position_from_time || false,
+            background_opacity: config.background_opacity ?? 100,
 
             ...config
         };
@@ -66,10 +84,7 @@ class CoverGateCard extends HTMLElement {
         const oldHass = this._hass;
         this._hass = hass;
 
-        // Check for state changes to trigger simulation
-        if (this.config.opening_time > 0 || this.config.closing_time > 0) {
-            this._checkStateChange(oldHass, hass);
-        }
+        this._hass = hass;
 
         if (!this._rendered) {
             this._render();
@@ -88,65 +103,14 @@ class CoverGateCard extends HTMLElement {
         return this._hass.states[this.config.entity];
     }
 
-    _checkStateChange(oldHass, newHass) {
-        if (!oldHass) return;
-
-        const entityId = this.config.entity;
-        const oldState = oldHass.states[entityId]?.state;
-        const newState = newHass.states[entityId]?.state;
-
-        if (oldState !== newState) {
-            if (newState === 'opening') {
-                this._startSimulation('opening');
-            } else if (newState === 'closing') {
-                this._startSimulation('closing');
-            } else {
-                this._stopSimulation();
-                // Sync position if we have a known end state and no position attribute
-                if (newState === 'open') this._simulatedPosition = 100;
-                if (newState === 'closed') this._simulatedPosition = 0;
-            }
+    _computeStateDisplay(stateObj) {
+        if (!stateObj) return '';
+        if (this._hass && this._hass.formatEntityState) {
+            return this._hass.formatEntityState(stateObj);
         }
-    }
-
-    _startSimulation(direction) {
-        if (this._animationFrame) cancelAnimationFrame(this._animationFrame);
-
-        this._state = direction;
-        this._lastUpdate = performance.now();
-
-        const animate = (time) => {
-            const deltaTime = (time - this._lastUpdate) / 1000; // seconds
-            this._lastUpdate = time;
-
-            const duration = direction === 'opening'
-                ? (this.config.opening_time || 10)
-                : (this.config.closing_time || 10);
-
-            const deltaPos = (100 / duration) * deltaTime;
-
-            if (direction === 'opening') {
-                this._simulatedPosition = Math.min(100, this._simulatedPosition + deltaPos);
-            } else {
-                this._simulatedPosition = Math.max(0, this._simulatedPosition - deltaPos);
-            }
-
-            this._updateVisuals(this._simulatedPosition);
-
-            if ((direction === 'opening' && this._simulatedPosition < 100) ||
-                (direction === 'closing' && this._simulatedPosition > 0)) {
-                this._animationFrame = requestAnimationFrame(animate);
-            } else {
-                this._state = 'stopped';
-            }
-        };
-
-        this._animationFrame = requestAnimationFrame(animate);
-    }
-
-    _stopSimulation() {
-        if (this._animationFrame) cancelAnimationFrame(this._animationFrame);
-        this._state = 'stopped';
+        // Fallback
+        const state = stateObj.state;
+        return state.charAt(0).toUpperCase() + state.slice(1);
     }
 
     _handleCoverAction(action) {
@@ -154,10 +118,34 @@ class CoverGateCard extends HTMLElement {
         this._hass.callService('cover', action, {
             entity_id: this.config.entity,
         });
+    }
 
-        // Immediate feedback for simulation logic if state doesn't update fast enough
-        // or if we rely purely on commands.
-        // But _checkStateChange is more robust if the entity reports state.
+    _handleToggle() {
+        if (!this._hass || !this.config) return;
+        const stateObj = this._getEntityState();
+        if (!stateObj) return;
+
+        // Determine action based on state/position
+        // Use real position if available
+        let position = 50;
+        if (stateObj.attributes.current_position !== undefined) {
+            position = Number(stateObj.attributes.current_position);
+        } else {
+            if (stateObj.state === 'closed') position = 0;
+            else if (stateObj.state === 'open') position = 100;
+        }
+
+        let action = 'stop_cover';
+
+        if (stateObj.state === 'opening' || stateObj.state === 'closing') {
+            action = 'stop_cover';
+        } else if (Math.round(position) === 0) {
+            action = 'open_cover';
+        } else {
+            action = 'close_cover';
+        }
+
+        this._handleCoverAction(action);
     }
 
     _openMoreInfo() {
@@ -173,18 +161,15 @@ class CoverGateCard extends HTMLElement {
         const stateObj = this._getEntityState();
         if (!stateObj) return;
 
-        // Use real position if available, otherwise simulation
+        // Use real position if available
         let position = 0;
-        if (stateObj.attributes.current_position !== undefined && !this.config.assume_position_from_time) {
+        if (stateObj.attributes.current_position !== undefined) {
             position = stateObj.attributes.current_position;
-            this._simulatedPosition = position; // Sync simulation
         } else {
             // Check if we need to infer state from string state (closed=0, open=100) if checks failed
-            if (this._state === 'stopped') {
-                if (stateObj.state === 'closed') this._simulatedPosition = 0;
-                if (stateObj.state === 'open') this._simulatedPosition = 100;
-            }
-            position = this._simulatedPosition;
+            if (stateObj.state === 'closed') position = 0;
+            else if (stateObj.state === 'open') position = 100;
+            else position = 50; // Unknown/Middle
         }
 
         this._updateVisuals(position);
@@ -206,6 +191,58 @@ class CoverGateCard extends HTMLElement {
 
         // Gate Animation
         this._animateGate(position);
+
+        // Update Button States
+        const btnOpen = this.shadowRoot.getElementById('btn-open');
+        const btnClose = this.shadowRoot.getElementById('btn-close');
+
+        if (btnOpen) {
+            if (Math.round(position) === 100) btnOpen.classList.add('disabled');
+            else btnOpen.classList.remove('disabled');
+        }
+
+        if (btnClose) {
+            if (Math.round(position) === 0) btnClose.classList.add('disabled');
+            else btnClose.classList.remove('disabled');
+        }
+
+        // Update Single Button
+        const btnToggle = this.shadowRoot.getElementById('btn-toggle');
+        if (btnToggle) {
+            const label = btnToggle.querySelector('.ctrl-label');
+            const icon = btnToggle.querySelector('ha-icon');
+
+            let text = '';
+            let iconName = '';
+            let styleType = ''; // open, stop, close
+
+            if (this._state === 'opening' || this._state === 'closing') {
+                text = this.config.button_text_stop;
+                iconName = this.config.btn_stop_icon || 'mdi:stop';
+                styleType = 'stop';
+            } else if (Math.round(position) === 0) {
+                text = this.config.button_text_open;
+                iconName = this.config.btn_open_icon || 'mdi:arrow-up';
+                styleType = 'open';
+            } else {
+                text = this.config.button_text_close;
+                iconName = this.config.btn_close_icon || 'mdi:arrow-down';
+                styleType = 'close';
+            }
+
+            if (label) label.textContent = text;
+            if (icon) icon.setAttribute('icon', iconName);
+
+            // Apply style dynamically
+            const bg = this.config[`btn_${styleType}_bg`] || this.config.button_style_background;
+            const textColor = this.config[`btn_${styleType}_text`] || this.config.button_style_text;
+            const iconColor = this.config[`btn_${styleType}_icon_color`] || (this.config.button_style_icon === 'inherit' ? textColor : this.config.button_style_icon);
+
+            btnToggle.style.background = bg;
+            btnToggle.style.color = textColor;
+            btnToggle.style.borderColor = 'rgba(255,255,255,0.1)';
+            btnToggle.style.setProperty('--btn-icon', iconColor);
+        }
     }
 
     _animateGate(position) {
@@ -214,13 +251,12 @@ class CoverGateCard extends HTMLElement {
         if (!gateVisual) return;
 
         if (gateType === 'sliding') {
-            const panel = gateVisual.querySelector('.gate-sliding-panel');
+            const panel = gateVisual.querySelector('.gate-panel');
             if (panel) {
-                // 0% -> Closed (0px), 100% -> Open (Slide Right)
-                // Assuming panel width is ~80% of view, we slide it.
-                // SVG viewbox 0 0 200 120. Panel width approx 140.
-                const translate = (position / 100) * 130;
-                panel.style.transform = `translateX(${translate}px)`;
+                // 0% -> Closed (0px), 100% -> Open (Slide Right 100%)
+                const translate = position;
+                panel.style.transform = `translateX(${translate}%)`;
+                // Also update shadow/glow opacity based on movement if desired
             }
         } else if (gateType === 'swing') {
             const left = gateVisual.querySelector('.gate-swing-left');
@@ -278,6 +314,18 @@ class CoverGateCard extends HTMLElement {
 
         const opacity = (this.config.background_opacity ?? 100) / 100;
 
+        // Helper to get button style
+        const getBtnStyle = (type) => {
+            const bg = this.config[`btn_${type}_bg`] || this.config.button_style_background;
+            const text = this.config[`btn_${type}_text`] || this.config.button_style_text;
+            const iconColor = this.config[`btn_${type}_icon_color`] || (this.config.button_style_icon === 'inherit' ? text : this.config.button_style_icon);
+            return `background: ${bg}; color: ${text}; --btn-icon: ${iconColor}; border-color: rgba(255,255,255,0.1);`;
+        };
+
+        const openStyle = getBtnStyle('open');
+        const stopStyle = getBtnStyle('stop');
+        const closeStyle = getBtnStyle('close');
+
         this.shadowRoot.innerHTML = `
             <style>
                 :host {
@@ -305,6 +353,7 @@ class CoverGateCard extends HTMLElement {
 
                 .header {
                     display: flex;
+                    flex-direction: column;
                     align-items: center;
                     justify-content: center;
                     margin-bottom: 8px;
@@ -317,6 +366,12 @@ class CoverGateCard extends HTMLElement {
                     display: flex;
                     align-items: center;
                     gap: 8px;
+                }
+
+                .state {
+                    font-size: 0.9rem;
+                    color: var(--secondary-text-color);
+                    margin-top: 2px;
                 }
 
                 /* VISUALIZATION CONTAINER */
@@ -340,18 +395,62 @@ class CoverGateCard extends HTMLElement {
                     max-width: 300px;
                 }
 
-                /* SLIDING GATE STYLES */
-                .gate-sliding-track { stroke: rgba(255,255,255,0.2); stroke-width: 2; }
-                .gate-post { fill: #444; stroke: #222; }
-                .gate-sliding-panel { 
-                    fill: #3a3a3a; 
-                    stroke: var(--accent-color); 
-                    stroke-width: 2; 
-                    transition: transform 0.1s linear;
-                    /* Glow effect */
-                    filter: drop-shadow(0 0 2px var(--accent-color));
+                /* SLIDING GATE RESPONSIVE STYLES */
+                .gate-sliding-wrapper {
+                    position: relative;
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden;
                 }
-                .gate-bars path { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
+                .gate-track {
+                    position: absolute;
+                    bottom: 15px;
+                    left: 0;
+                    width: 100%;
+                    height: 4px;
+                    background: rgba(255,255,255,0.2);
+                    border-radius: 2px;
+                }
+                .gate-post { 
+                    position: absolute;
+                    right: 10%;
+                    bottom: 15px;
+                    width: 12px;
+                    height: 70%;
+                    background: #444;
+                    border: 1px solid #222;
+                    border-radius: 2px;
+                    z-index: 2;
+                }
+                .gate-panel {
+                    position: absolute;
+                    left: 10px; 
+                    bottom: 18px;
+                    height: 60%;
+                    /* Width: distance from left (10px) to post (right 10%) + overlap? 
+                       Let's say post is at right: 30px roughly. 
+                       Panel should cover the gap. 
+                       width: calc(90% - 20px) roughly to touch the post 
+                    */
+                    width: calc(90% - 20px); 
+                    background: rgba(58, 58, 58, 0.3);
+                    border: 2px solid var(--accent-color);
+                    border-radius: 4px;
+                    box-sizing: border-box;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-evenly;
+                    padding: 4px 0;
+                    z-index: 1;
+                    transition: transform 0.1s linear;
+                    backdrop-filter: blur(2px);
+                }
+                .gate-bar {
+                    width: 100%;
+                    height: 2px;
+                    background: var(--accent-color);
+                    opacity: 0.8;
+                }
 
                 /* SWING GATE STYLES */
                 .gate-swing-left, .gate-swing-right {
@@ -426,7 +525,6 @@ class CoverGateCard extends HTMLElement {
 
                 .ctrl-btn {
                     flex: 1;
-                    background: rgba(255,255,255,0.05);
                     border: 1px solid rgba(255,255,255,0.1);
                     border-radius: 8px;
                     padding: 8px;
@@ -436,28 +534,28 @@ class CoverGateCard extends HTMLElement {
                     align-items: center;
                     gap: 2px;
                     transition: all 0.2s;
-                    color: var(--primary-text-color);
+                    /* Styles set inline */
                 }
 
                 .ctrl-btn.disabled {
                     opacity: 0.3;
                     pointer-events: none;
-                    background: transparent;
-                    border-color: transparent;
+                    background: transparent !important;
+                    border-color: transparent !important;
                 }
 
                 .ctrl-btn:hover:not(.disabled) {
-                    background: rgba(255,255,255,0.1);
-                    border-color: var(--accent-color);
+                    filter: brightness(1.2);
+                    border-color: var(--accent-color) !important;
                 }
 
                 .ctrl-btn:active:not(.disabled) {
-                    background: var(--accent-color);
-                    color: #fff;
+                    filter: brightness(0.8);
                 }
                 
                 .ctrl-btn ha-icon {
                     --mdc-icon-size: 18px;
+                    color: var(--btn-icon);
                 }
 
                 .ctrl-label {
@@ -469,17 +567,25 @@ class CoverGateCard extends HTMLElement {
             
             <ha-card>
                 <div class="card-content">
-                    ${this.config.show_name ? `
+                    ${(this.config.show_name || this.config.show_state) ? `
                     <div class="header">
+                        ${this.config.show_name ? `
                         <div class="title">
                             <ha-icon icon="${this._getGateIcon()}"></ha-icon>
                             ${name}
                         </div>
+                        ` : ''}
+                        
+                        ${this.config.show_state ? `
+                        <div class="state">
+                            ${stateObj ? this._computeStateDisplay(stateObj) : ''}
+                        </div>
+                        ` : ''}
                     </div>
                     ` : ''}
 
                     <div class="gate-visual-container">
-                        ${this._renderSvg(this.config.gate_type)}
+                        ${this._renderGateVisual(this.config.gate_type)}
                     </div>
 
                     <div class="controls">
@@ -489,23 +595,29 @@ class CoverGateCard extends HTMLElement {
                         </div>
 
                         <div class="button-row">
+                            ${this.config.control_style === 'single' ? `
+                                <button class="ctrl-btn" id="btn-toggle" style="${openStyle}">
+                                    <ha-icon icon="${this.config.btn_open_icon}"></ha-icon>
+                                    <span class="ctrl-label">${this.config.button_text_open}</span>
+                                </button>
+                            ` : `
+                                <button class="ctrl-btn ${Math.round(position) === 100 ? 'disabled' : ''}" id="btn-open" style="${openStyle}">
+                                    <ha-icon icon="${this.config.btn_open_icon}"></ha-icon>
+                                    <span class="ctrl-label">${this.config.button_text_open}</span>
+                                </button>
+                                
+                                ${this.config.show_stop_button ? `
+                                <button class="ctrl-btn" id="btn-stop" style="${stopStyle}">
+                                    <ha-icon icon="${this.config.btn_stop_icon}"></ha-icon>
+                                    <span class="ctrl-label">${this.config.button_text_stop}</span>
+                                </button>
+                                ` : ''}
 
-                            <button class="ctrl-btn ${Math.round(position) === 100 ? 'disabled' : ''}" id="btn-open">
-                                <ha-icon icon="mdi:arrow-up"></ha-icon>
-                                <span class="ctrl-label">${this.config.button_text_open}</span>
-                            </button>
-                            
-                            ${this.config.show_stop_button ? `
-                            <button class="ctrl-btn" id="btn-stop">
-                                <ha-icon icon="mdi:stop"></ha-icon>
-                                <span class="ctrl-label">${this.config.button_text_stop}</span>
-                            </button>
-                            ` : ''}
-
-                            <button class="ctrl-btn ${Math.round(position) === 0 ? 'disabled' : ''}" id="btn-close">
-                                <ha-icon icon="mdi:arrow-down"></ha-icon>
-                                <span class="ctrl-label">${this.config.button_text_close}</span>
-                            </button>
+                                <button class="ctrl-btn ${Math.round(position) === 0 ? 'disabled' : ''}" id="btn-close" style="${closeStyle}">
+                                    <ha-icon icon="${this.config.btn_close_icon}"></ha-icon>
+                                    <span class="ctrl-label">${this.config.button_text_close}</span>
+                                </button>
+                            `}
                         </div>
                     </div>
                 </div>
@@ -516,26 +628,18 @@ class CoverGateCard extends HTMLElement {
         this._updateVisuals(position);
     }
 
-    _renderSvg(type) {
+    _renderGateVisual(type) {
         if (type === 'sliding') {
             return `
-                <svg class="gate-visual" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
-                    <!-- Ground/Track -->
-                    <line x1="10" y1="110" x2="190" y2="110" class="gate-sliding-track" />
-                    
-                    <!-- Fixed Post (Right) -->
-                    <rect x="170" y="20" width="20" height="90" rx="2" class="gate-post" />
-                    
-                    <!-- Sliding Panel -->
-                    <g class="gate-sliding-panel">
-                        <rect x="20" y="30" width="140" height="75" rx="2" fill-opacity="0.3" />
-                         <!-- Bars -->
-                        <line x1="20" y1="45" x2="160" y2="45" stroke="var(--accent-color)" stroke-width="2" />
-                        <line x1="20" y1="65" x2="160" y2="65" stroke="var(--accent-color)" stroke-width="2" />
-                        <line x1="20" y1="85" x2="160" y2="85" stroke="var(--accent-color)" stroke-width="2" />
-                        <rect x="20" y="30" width="140" height="75" rx="2" fill="none" class="gate-frame" stroke="var(--accent-color)" stroke-width="2" />
-                    </g>
-                </svg>
+                <div class="gate-sliding-wrapper gate-visual">
+                    <div class="gate-track"></div>
+                    <div class="gate-post"></div>
+                    <div class="gate-panel">
+                        <div class="gate-bar"></div>
+                        <div class="gate-bar"></div>
+                        <div class="gate-bar"></div>
+                    </div>
+                </div>
             `;
         } else if (type === 'swing') {
             return `
@@ -585,6 +689,7 @@ class CoverGateCard extends HTMLElement {
         this.shadowRoot.getElementById('btn-open')?.addEventListener('click', () => this._handleCoverAction('open_cover'));
         this.shadowRoot.getElementById('btn-close')?.addEventListener('click', () => this._handleCoverAction('close_cover'));
         this.shadowRoot.getElementById('btn-stop')?.addEventListener('click', () => this._handleCoverAction('stop_cover'));
+        this.shadowRoot.getElementById('btn-toggle')?.addEventListener('click', () => this._handleToggle());
 
         const slider = this.shadowRoot.querySelector('.position-slider');
         if (slider) {
@@ -642,6 +747,7 @@ class CoverGateCardEditor extends HTMLElement {
                     if (key === 'show_buttons') value = config.show_buttons !== false;
                     if (key === 'show_stop_button') value = config.show_stop_button !== false;
                     if (key === 'show_name') value = config.show_name !== false;
+                    if (key === 'show_state') value = config.show_state !== false;
                     el.checked = value;
                 } else if (el.tagName === 'HA-BACKEND-SLIDER') {
                     // Slider default
@@ -650,6 +756,7 @@ class CoverGateCardEditor extends HTMLElement {
                 } else {
                     // Textfield, select, picker
                     if (key === 'gate_type' && !value) value = 'sliding';
+                    if (key === 'control_style' && !value) value = 'row';
                     // Maintain focus if this element is active to avoid cursor jumping
                     if (el !== document.activeElement && el.value !== value) {
                         el.value = value !== undefined ? value : '';
@@ -699,6 +806,66 @@ class CoverGateCardEditor extends HTMLElement {
                     ></ha-textfield>
                 </div>
 
+                <h3>Button Global Styling</h3>
+                 <div class="side-by-side">
+                    <ha-textfield
+                        label="Global BG"
+                        .value="${this._config.button_style_background || 'rgba(255,255,255,0.05)'}"
+                        configValue="button_style_background"
+                    ></ha-textfield>
+                    <ha-textfield
+                        label="Global Text"
+                        .value="${this._config.button_style_text || 'var(--primary-text-color)'}"
+                        configValue="button_style_text"
+                    ></ha-textfield>
+                    <ha-textfield
+                        label="Global Icon Color"
+                        .value="${this._config.button_style_icon || ''}"
+                        configValue="button_style_icon"
+                    ></ha-textfield>
+                </div>
+
+                <h3>Open Button</h3>
+                <div class="side-by-side">
+                     <ha-textfield label="BG" .value="${this._config.btn_open_bg || ''}" configValue="btn_open_bg"></ha-textfield>
+                     <ha-textfield label="Text" .value="${this._config.btn_open_text || ''}" configValue="btn_open_text"></ha-textfield>
+                </div>
+                <div class="side-by-side">
+                     <ha-icon-picker label="Icon" .value="${this._config.btn_open_icon || ''}" configValue="btn_open_icon"></ha-icon-picker>
+                     <ha-textfield label="Icon Color" .value="${this._config.btn_open_icon_color || ''}" configValue="btn_open_icon_color"></ha-textfield>
+                </div>
+
+                <h3>Stop Button</h3>
+                <div class="side-by-side">
+                     <ha-textfield label="BG" .value="${this._config.btn_stop_bg || ''}" configValue="btn_stop_bg"></ha-textfield>
+                     <ha-textfield label="Text" .value="${this._config.btn_stop_text || ''}" configValue="btn_stop_text"></ha-textfield>
+                </div>
+                <div class="side-by-side">
+                     <ha-icon-picker label="Icon" .value="${this._config.btn_stop_icon || ''}" configValue="btn_stop_icon"></ha-icon-picker>
+                     <ha-textfield label="Icon Color" .value="${this._config.btn_stop_icon_color || ''}" configValue="btn_stop_icon_color"></ha-textfield>
+                </div>
+
+                <h3>Close Button</h3>
+                 <div class="side-by-side">
+                     <ha-textfield label="BG" .value="${this._config.btn_close_bg || ''}" configValue="btn_close_bg"></ha-textfield>
+                     <ha-textfield label="Text" .value="${this._config.btn_close_text || ''}" configValue="btn_close_text"></ha-textfield>
+                </div>
+                <div class="side-by-side">
+                     <ha-icon-picker label="Icon" .value="${this._config.btn_close_icon || ''}" configValue="btn_close_icon"></ha-icon-picker>
+                     <ha-textfield label="Icon Color" .value="${this._config.btn_close_icon_color || ''}" configValue="btn_close_icon_color"></ha-textfield>
+                </div>
+
+                <div class="side-by-side">
+                     <div class="select-label">Control Style</div>
+                     <select
+                        class="native-select"
+                        configValue="control_style"
+                    >
+                        <option value="row">3-Button Row</option>
+                        <option value="single">Single Button</option>
+                    </select>
+                </div>
+
                 <div class="side-by-side">
                      <div class="select-label">Gate Type</div>
                      <select
@@ -709,23 +876,6 @@ class CoverGateCardEditor extends HTMLElement {
                         <option value="swing">Swing Gate</option>
                         <option value="garage">Garage Door</option>
                     </select>
-                </div>
-                
-                <br>
-                <h3>Simulation Settings (Optional)</h3>
-                <div class="side-by-side">
-                     <ha-textfield
-                        label="Opening Time (sec)"
-                        type="number"
-                        .value="${this._config.opening_time || 0}"
-                        configValue="opening_time"
-                    ></ha-textfield>
-                    <ha-textfield
-                        label="Closing Time (sec)"
-                        type="number"
-                        .value="${this._config.closing_time || 0}"
-                        configValue="closing_time"
-                    ></ha-textfield>
                 </div>
                 
                 <br>
@@ -755,6 +905,12 @@ class CoverGateCardEditor extends HTMLElement {
                             configValue="show_name"
                         ></ha-checkbox>
                     </ha-formfield>
+                    <ha-formfield label="Show State">
+                        <ha-checkbox
+                            .checked="${this._config.show_state !== false}"
+                            configValue="show_state"
+                        ></ha-checkbox>
+                    </ha-formfield>
                 </div>
             </div>
             <style>
@@ -776,6 +932,9 @@ class CoverGateCardEditor extends HTMLElement {
             }
             if (el.tagName === 'SELECT') {
                 el.addEventListener('change', this._valueChanged.bind(this));
+            }
+            if (el.tagName === 'HA-ICON-PICKER') {
+                el.addEventListener('value-changed', this._valueChanged.bind(this));
             }
         });
     }
