@@ -64,6 +64,7 @@ class CoverGateCard extends HTMLElement {
             show_buttons: config.show_buttons !== false,
             show_name: config.show_name !== false,
             show_state: config.show_state !== false,
+            show_slider: config.show_slider !== false,
             show_stop_button: config.show_stop_button !== false,
             background_opacity: config.background_opacity ?? 100,
 
@@ -589,10 +590,12 @@ class CoverGateCard extends HTMLElement {
                     </div>
 
                     <div class="controls">
+                        ${this.config.show_slider ? `
                         <div class="slider-container">
                             <div class="position-fill" style="width: ${position}%"></div>
                             <input type="range" class="position-slider" min="0" max="100" value="${Math.round(position)}">
                         </div>
+                        ` : ''}
 
                         <div class="button-row">
                             ${this.config.control_style === 'single' ? `
@@ -748,6 +751,7 @@ class CoverGateCardEditor extends HTMLElement {
                     if (key === 'show_stop_button') value = config.show_stop_button !== false;
                     if (key === 'show_name') value = config.show_name !== false;
                     if (key === 'show_state') value = config.show_state !== false;
+                    if (key === 'show_slider') value = config.show_slider !== false;
                     el.checked = value;
                 } else if (el.tagName === 'HA-BACKEND-SLIDER') {
                     // Slider default
@@ -909,6 +913,12 @@ class CoverGateCardEditor extends HTMLElement {
                         <ha-checkbox
                             .checked="${this._config.show_state !== false}"
                             configValue="show_state"
+                        ></ha-checkbox>
+                    </ha-formfield>
+                    <ha-formfield label="Show Slider">
+                        <ha-checkbox
+                            .checked="${this._config.show_slider !== false}"
+                            configValue="show_slider"
                         ></ha-checkbox>
                     </ha-formfield>
                 </div>
