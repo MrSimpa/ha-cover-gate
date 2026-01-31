@@ -1,5 +1,8 @@
 # Cover Gate Card
 A modern Home Assistant custom card for controlling gates and garage doors with advanced animations and styling.
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?business=A3X9JMT39M3U2&no_recurring=0&currency_code=EUR)
+
+*If you like this project, please support me.*
 
 ## Features
 - 🚪 **Multiple Gate Types**: Sliding Gate (Responsive), Swing Gate, Garage Door
@@ -167,3 +170,6 @@ template:
         
         default_entity_id: cover.garage
 ```
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?business=A3X9JMT39M3U2&no_recurring=0&currency_code=EUR)
+
+*If you like this project, please support me.*
